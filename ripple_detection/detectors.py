@@ -5,15 +5,19 @@ from itertools import chain
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
+from tqdm.notebook import tqdm
 
 from ripple_detection.core import (
     exclude_close_events,
     exclude_movement,
+    exclude_movement_by_majority,
     gaussian_smooth,
     get_envelope,
     get_multiunit_population_firing_rate,
     merge_overlapping_ranges,
+    merge_overlapping_ranges_track_participation,
     normalize_signal,
+    normalize_signal_manually,
     threshold_by_zscore,
 )
 
@@ -282,6 +286,201 @@ def get_Kay_ripple_consensus_trace(
         ripple_consensus_trace[not_null], smoothing_sigma, sampling_frequency
     )
     return np.sqrt(ripple_consensus_trace)
+
+
+def Shvartsman_ripple_detector(
+    time: ArrayLike,
+    filtered_lfps: ArrayLike,
+    speed: ArrayLike,
+    sampling_frequency: float,
+    speed_threshold: float = 4.0,
+    minimum_duration: float = 0.015,
+    zscore_threshold: float = 3.0,
+    smoothing_sigma: float = 0.004,
+    close_ripple_threshold: float = 0.0,
+    normalization_method: str = "zscore",
+    normalization_mask: ArrayLike | None = None,
+    normalization_time_range: tuple[float, float] | None = None,
+    manual_normalization: bool = True,
+    elec_baselines: ArrayLike = None,
+    elec_deviations: ArrayLike = None,
+    participation_threshold: float = 2,
+) -> pd.DataFrame:
+    """Detect sharp-wave ripples using per-channel detection, only considering
+    times when the % of participating channels exceeds a set fraction. Acts 
+    as a middle ground between Kay method (consensus method) and Karlsson 
+    method (local ripples) that is less sensitive to random noise 
+    fluctuations than the Karlsson method.
+
+    Additionally, allows for manual normalization by passing in specific 
+    inputs for the baselines and deviations for each electrode. For example,
+    if you want to normalize across all epochs throughout a day rather than
+    within one particular epoch (important for detecting ripples during sleep
+    sessions), this method allows that flexibility.
+
+    Parameters
+    ----------
+    time : array_like, shape (n_time,)
+        Time values for each sample in **seconds**.
+    filtered_lfps : array_like, shape (n_time, n_channels)
+        LFP signals **already bandpass filtered** to ripple band (150-250 Hz).
+        Must be pre-filtered using `filter_ripple_band()` before calling this detector.
+    speed : array_like, shape (n_time,)
+        Animal's running speed at each time point in **cm/s**.
+    sampling_frequency : float
+        Sampling rate in Hz.
+    speed_threshold : float, optional
+        Maximum speed (in cm/s) for ripple detection. Events during movement
+        (speed > threshold) are excluded. Default is 4.0 cm/s, which corresponds
+        to immobility/slow movement in rodents.
+
+        **Important**: Ensure your speed data is in cm/s. If using m/s, multiply
+        by 100. To disable movement exclusion, set to a very large value (e.g., 1e6).
+    minimum_duration : float, optional
+        Minimum ripple duration in **seconds**. Default is 0.015 (15 milliseconds).
+        Typical range: 0.015 - 0.100 s (15-100 ms). Lower values detect shorter
+        events but may increase false positives.
+    zscore_threshold : float, optional
+        Detection sensitivity threshold in standard deviations above mean.
+        Default is 3.0 (higher than Kay's 2.0 because per-channel detection
+        is more sensitive). Lower values detect more events.
+    smoothing_sigma : float, optional
+        Standard deviation of Gaussian smoothing kernel in **seconds**.
+        Default is 0.004 (4 ms). Rarely needs adjustment; increase for
+        noisier data.
+    close_ripple_threshold : float, optional
+        Minimum time in **seconds** between ripples. Events closer than this
+        are merged. Default is 0.0 (no merging). Set to 0.05-0.1 s to merge
+        closely-spaced events.
+    normalization_method : {'zscore', 'median_mad'}, optional
+        Method for normalizing each channel. Default is 'zscore' (mean/std).
+        Use 'median_mad' for more robust normalization when data contains outliers.
+        The median/MAD method is more resistant to extreme values.
+    normalization_mask : array_like, shape (n_time,), optional
+        Boolean mask to specify which samples to use for computing normalization
+        statistics. For example, use `speed < speed_threshold` to compute
+        statistics only during immobility. Cannot be used with
+        `normalization_time_range`. Default is None (use all data).
+    normalization_time_range : tuple of (float, float), optional
+        Time range (start_time, end_time) in seconds for computing normalization
+        statistics. Useful for baseline normalization. Cannot be used with
+        `normalization_mask`. Default is None (use all data).
+    manual_normalization: bool, optional
+        If True, enable manual normalization where elec_baselines and
+        elec_deviations are used rather than automatically computing the 
+        zscore or median_mad.
+    elec_baselines: array_like, shape (n_channels,), optional
+        Specifies the baseline value to use for normalization for each channel.
+    elec_deviations: array_like, shape (n_channels,), optional
+        Specifies the deviation value to use for normalization for each channel.
+    participation_threshold: float, optional
+        Minimum number of channels that must participate in a candidate ripple\
+        event for it classified as a ripple. Default = 2.
+
+    Returns
+    -------
+    ripple_times : pd.DataFrame
+        DataFrame with detected ripples and comprehensive statistics (see
+        Kay_ripple_detector for column descriptions).
+
+        Returns empty DataFrame if no ripples detected. If this occurs, try:
+        - Lowering zscore_threshold (e.g., from 3.0 to 2.0)
+        - Lowering minimum_duration (e.g., from 0.015 to 0.010)
+        - Increasing speed_threshold if movement exclusion is too strict
+        - Verifying your data contains ripple oscillations (150-250 Hz)
+
+    """
+    print("preprocessing detector inputs...")
+    time, filtered_lfps, speed = _preprocess_detector_inputs(
+        time, filtered_lfps, speed, sampling_frequency, speed_threshold
+    )
+
+    filtered_lfps = get_envelope(filtered_lfps)
+    filtered_lfps = gaussian_smooth(
+        filtered_lfps, sigma=smoothing_sigma, sampling_frequency=sampling_frequency
+    )
+
+    if manual_normalization:
+        # make sure to multiple mad by 1.4826 if using median_mad to get std equivalent
+        if elec_baselines is None or elec_deviations is None:
+            raise ValueError(
+                "Must provide elec_baselines and elec_deviations for manual normalization."
+            )
+        print(
+            "manually normalizing the signal based on input baselines and deviations..."
+        )
+        filtered_lfps = normalize_signal_manually(
+            filtered_lfps,
+            elec_baselines,
+            elec_deviations,
+        )
+    else:
+        filtered_lfps = normalize_signal(
+            filtered_lfps,
+            time=time,
+            method=normalization_method,
+            normalization_mask=normalization_mask,
+            normalization_time_range=normalization_time_range,
+        )
+
+    print("thresholding the normalized ripple times...")
+    candidate_ripple_times = [
+        threshold_by_zscore(filtered_lfp, time, minimum_duration, zscore_threshold)
+        for filtered_lfp in filtered_lfps.T
+    ]
+
+    print("merging overlapping candidate ripple times...")
+    merged_candidates = merge_overlapping_ranges_track_participation(
+        candidate_ripple_times
+    )
+
+    # account for different ways to specify participation threshold (fraction or number of electrodes)
+    n_elecs = filtered_lfps.shape[1]
+    if (participation_threshold >= 0) & (participation_threshold <= 1):
+        # calculate number of electrodes threshold
+        n_elecs_thresh = n_elecs * participation_threshold
+
+    if participation_threshold > 1:
+        n_elecs_thresh = participation_threshold
+
+    participation_mask = (
+        np.asarray([len(interval[2]) for interval in merged_candidates])
+        >= n_elecs_thresh
+    )
+    candidate_ripple_times = merged_candidates[participation_mask, :2]
+
+    print("excluding movement and close event times...")
+    close_ripple_threshold = 0
+    candidate_ripple_times, included_ripple_inds = exclude_movement_by_majority(
+        candidate_ripple_times, speed, time, speed_threshold=speed_threshold
+    )
+    ripple_times, included_ripple_inds = exclude_close_events(
+        candidate_ripple_times, close_ripple_threshold, included_ripple_inds
+    )
+
+    print("finding participating electrode information...")
+    # find participant information
+    participants = merged_candidates[
+        participation_mask, 2
+    ]  # filter by participation mask
+    participants = participants[
+        included_ripple_inds
+    ]  # filter by included ripple inds from other exclusion functions above
+    n_participants = np.array([len(p) for p in participants])
+    frac_participants = n_participants / n_elecs
+
+    print("getting event stats...")
+    ripple_data = _get_Shvartsman_event_stats(
+        ripple_times,
+        time,
+        filtered_lfps,
+        speed,
+        participants,
+        n_participants,
+        frac_participants,
+    )
+
+    return ripple_data
 
 
 def Kay_ripple_detector(
@@ -931,6 +1130,131 @@ def _get_event_stats(
             "min_speed": min_speed,
             "median_speed": median_speed,
             "mean_speed": mean_speed,
+        },
+        index=index,
+    )
+
+
+def _get_Shvartsman_event_stats(
+    event_times: ArrayLike,
+    time: ArrayLike,
+    norm_ripple_bands: ArrayLike,
+    speed: ArrayLike,
+    participants: ArrayLike,
+    n_participants: ArrayLike,
+    frac_participants: ArrayLike,
+    minimum_duration: float = 0.015,
+) -> pd.DataFrame:
+    """Compute comprehensive statistics for detected events.
+
+    Calculates temporal, z-score, signal, and speed metrics for each event.
+
+    Parameters
+    ----------
+    event_times : array_like, shape (n_events, 2)
+        Array of [start_time, end_time] for each event.
+    time : array_like, shape (n_time,)
+        Time values for each sample.
+    norm_ripple_bands: array_like, shape (n_time, n_channels)
+        Normalized ripple-filtered LFP.
+    speed : array_like, shape (n_time,)
+        Animal's speed at each time point.
+    participants: array_like, shape (n_events,)
+        Which channels participate in each ripple event.
+    n_participants: array_like, shape (n_events,)
+        Number of participating channels for each ripple event.
+    frac_participants: array_like, shape (n_events,)
+        Fraction of (# of participating channels) / (total channels) per 
+        each ripple event.
+    minimum_duration : float, optional
+        Minimum duration for max_thresh calculation. Default is 0.015 (15 ms).
+        
+    Returns
+    -------
+    event_stats : pd.DataFrame
+        DataFrame with one row per event and columns:
+        - start_time, end_time: Event boundaries
+        - duration: Event duration (end - start)
+        - max_thresh: Maximum z-score sustained for minimum_duration
+        - mean_zscore, median_zscore, max_zscore, min_zscore: Z-score statistics
+        - area: Integral of z-score over event duration
+        - total_energy: Integral of squared z-score
+        - speed_at_start, speed_at_end: Speed at event boundaries
+        - max_speed, min_speed, median_speed, mean_speed: Speed statistics
+        - participants, n_participants, frac_participants: Information on 
+            which channels exhibited a ripple during the detected event
+
+    """
+    event_times_arr = np.asarray(event_times)
+    time_arr = np.asarray(time)
+    norm_ripple_bands_arr = np.asarray(norm_ripple_bands)
+    speed_arr = np.asarray(speed)
+
+    index = pd.Index(np.arange(len(event_times_arr)) + 1, name="event_number")
+
+    mean_zscore = []
+    median_zscore = []
+    max_zscore = []
+    min_zscore = []
+    duration = []
+    max_speed = []
+    min_speed = []
+    median_speed = []
+    mean_speed = []
+    max_thresh = []
+    area = []
+    total_energy = []
+
+    for r, (start_time, end_time) in tqdm(enumerate(event_times_arr)):
+
+        time_mask = np.logical_and(time_arr >= start_time, time_arr <= end_time)
+        time_ind = np.where(time_mask)[0]
+        elec_ind = np.asarray(list(participants[r]))
+        event_zscore = norm_ripple_bands_arr[np.ix_(time_ind, elec_ind)].mean(
+            axis=1
+        )  # only include the participating electrodes for all of these metrics
+
+        max_thresh.append(
+            _find_max_thresh(time_arr[time_mask], event_zscore, minimum_duration)
+        )
+        mean_zscore.append(np.mean(event_zscore))
+        median_zscore.append(np.median(event_zscore))
+        max_zscore.append(np.max(event_zscore))
+        min_zscore.append(np.min(event_zscore))
+        area.append(np.trapz(event_zscore, time_arr[time_mask]))
+        total_energy.append(np.trapz(event_zscore**2, time_arr[time_mask]))
+        duration.append(end_time - start_time)
+        max_speed.append(np.max(speed_arr[time_mask]))
+        min_speed.append(np.min(speed_arr[time_mask]))
+        median_speed.append(np.median(speed_arr[time_mask]))
+        mean_speed.append(np.mean(speed_arr[time_mask]))
+
+    try:
+        event_start_times = event_times_arr[:, 0]
+        event_end_times = event_times_arr[:, 1]
+    except (IndexError, TypeError):
+        event_start_times = []
+        event_end_times = []
+
+    return pd.DataFrame(
+        {
+            "start_time": event_start_times,
+            "end_time": event_end_times,
+            "duration": duration,
+            "max_thresh": max_thresh,
+            "mean_zscore": mean_zscore,
+            "median_zscore": median_zscore,
+            "max_zscore": max_zscore,
+            "min_zscore": min_zscore,
+            "area": area,
+            "total_energy": total_energy,
+            "max_speed": max_speed,
+            "min_speed": min_speed,
+            "median_speed": median_speed,
+            "mean_speed": mean_speed,
+            "participants": participants,
+            "n_participants": n_participants,
+            "frac_participants": frac_participants,
         },
         index=index,
     )

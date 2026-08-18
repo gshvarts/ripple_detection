@@ -331,6 +331,66 @@ def exclude_movement(
         return []
 
 
+def exclude_movement_by_majority(
+    candidate_ripple_times: ArrayLike,
+    speed: ArrayLike,
+    time: ArrayLike,
+    speed_threshold: float = 4.0,
+    majority_threshold: float = 0.5,
+) -> NDArray | list:
+    """Filter out candidate ripples that occur during animal movement.
+
+    Removes events where the animal's speed at either the start or end of the
+    event exceeds the specified threshold.
+
+    Expands on exclude_movement by allowing specification of how much of the
+    event is allowed to include movement rather than just excluding any 
+    events that include any movement.
+
+    Parameters
+    ----------
+    candidate_ripple_times : array_like, shape (n_ripples, 2)
+        Array of candidate event times with columns [start_time, end_time].
+    speed : array_like, shape (n_time,)
+        Animal's speed at each time point.
+    time : array_like, shape (n_time,)
+        Time values corresponding to speed measurements.
+    speed_threshold : float, optional
+        Maximum speed (in same units as `speed`) for event to be retained.
+        Events with speed < speed_threshold for a majority of the event are included.
+        Default is 4.0 (cm/s).
+    majority_threshold: float, optional
+        Proportion of time within the event that speed must be below threshold
+        to include the event. Default is 0.5 (50% of the event duration).
+
+    Returns
+    -------
+    included_ripple_times : ndarray or list
+        Filtered event times where animal speed is below threshold for a 
+        majority of the event time. Returns ndarray of shape (n_stationary_ripples, 2), 
+        or empty list if no events remain.
+    included_ripple_inds: list
+        Indices of the included ripples from the original candidate list. This is useful
+        for filtering associated data arrays.
+
+    """
+    candidate_ripple_times = np.array(candidate_ripple_times)
+
+    speed_df = pd.DataFrame({'speed': speed}, index=time)
+
+    included_ripple_times = []
+    included_ripple_inds = []
+    for r, (start_time, end_time) in enumerate(candidate_ripple_times):
+        speed_segment = speed_df.loc[start_time:end_time, 'speed']
+        n_below_threshold = np.sum(speed_segment <= speed_threshold)
+        n_total = len(speed_segment)
+        if n_below_threshold / n_total >= majority_threshold:
+            included_ripple_times.append([start_time, end_time])  # keep this ripple
+            included_ripple_inds.append(r)
+
+    return included_ripple_times, included_ripple_inds
+
+
 def _find_containing_interval(
     interval_candidates: list[tuple[float, float]], target_interval: tuple[float, float]
 ) -> tuple[float, float]:
@@ -757,6 +817,47 @@ def normalize_signal(
     else:  # method == "median_mad"
         return _normalize_median_mad(data_arr, mask)
 
+def normalize_signal_manually(
+    data: ArrayLike,
+    elec_baselines: ArrayLike,
+    elec_deviations: ArrayLike,        
+):
+    """
+    Allows normalization based on the baselines and deviations input into this
+    function rather than automatically calculating them based on the passed 
+    in data.
+    This is particularly useful for doing ripple detection on sleep sessions
+    when you want to use an overall baseline/deviation from the entire recording
+    day rather than just for that sleep session, which tend to have greater
+    baselines and deviation values due to a higher concentration of ripples
+    during sleep.
+
+    Parameters
+    ----------
+    data: array_like, shape (n_time,) or (n_time, n_channels)
+        Input signal to normalize. Can be 1D or 2D.
+    elec_baselines: array_like, shape (n_channels,)
+        Baseline value for each channel
+    elec_deviations: array_like, shape (n_channels,)
+        Deviation values for each channel
+
+    Returns
+    -------
+    normalized_data : ndarray, shape matches input
+        Normalized signal with the same shape as input.
+    """
+    if data.ndim == 1:
+        if elec_deviations == 0 or np.isnan(elec_deviations):
+            return np.zeros_like(data)
+        normalized = (data - elec_baselines) / elec_deviations
+    else:
+        # Handle multi-channel data (n_time, n_channels)
+        # Reshape mad for broadcasting
+        elec_deviations = elec_deviations.copy().reshape(1, -1)
+        elec_deviations[elec_deviations == 0] = 1.0  # Avoid division by zero
+        normalized_data = (data - elec_baselines) / elec_deviations
+    
+    return normalized_data
 
 def threshold_by_zscore(
     zscored_data: ArrayLike,
@@ -843,9 +944,49 @@ def merge_overlapping_ranges(
             current_stop = max(current_stop, stop)
     yield current_start, current_stop
 
+def merge_overlapping_ranges_track_participation(
+    candidate_ripple_times: list[tuple[float, float]],
+):
+    """
+    Merge overlapping and adjacent ranges as in merge_overlapping_ranges
+    but also track which channels (e_idx) contribute to each merged range
+    (ripple event).
+    """
+    all_intervals = []
+    for e_idx, intervals in enumerate(candidate_ripple_times):
+        for start, end in intervals:
+            all_intervals.append((start, end, e_idx))
+
+    all_intervals.sort(key=lambda x: x[0])
+
+    merged = []
+
+    for start, end, e_idx in all_intervals:
+        # initialize the merged list
+        if not merged:
+            merged.append([start, end, {e_idx}])
+            continue
+
+        # fetch the lastmost interval in merged
+        last_start, last_end, last_elecs = merged[-1]
+
+        # if the new interval overlaps with the most recent merged interval:
+        if start <= last_end:
+            # extend the interval if needed
+            merged[-1][1] = max(last_end, end)
+            # add current electrode to the existing set
+            merged[-1][2].add(e_idx)
+        else:
+            # otherwise create a new merged interval
+            merged.append([start, end, {e_idx}])
+
+    merged = np.asarray(merged)
+
+    return merged
 
 def exclude_close_events(
-    candidate_event_times: ArrayLike, close_event_threshold: float = 1.0
+    candidate_event_times: ArrayLike, close_event_threshold: float = 1.0,
+    included_ripple_inds: list = None,
 ) -> NDArray | list:
     """Remove events that occur too close together in time.
 
@@ -864,12 +1005,18 @@ def exclude_close_events(
     close_event_threshold : float, optional
         Minimum time between events. Events starting within this time after
         a previous event ends are excluded. Default is 1.0 (seconds).
+    included_ripple_inds: list, optional
+        Indices of the included ripples from the original candidate list. This is useful
+        for filtering associated data arrays.
 
     Returns
     -------
     filtered_event_times : ndarray or list
         Filtered event times with shape (n_filtered_events, 2), or empty
         list if no events remain.
+    included_ripple_inds: list
+        Indices of the included ripples from the original candidate list. This is useful
+        for filtering associated data arrays.
 
     Notes
     -----
@@ -878,6 +1025,8 @@ def exclude_close_events(
 
     """
     candidate_event_times = np.array(candidate_event_times)
+    if included_ripple_inds is not None:
+        included_ripple_inds = np.array(included_ripple_inds)
 
     if candidate_event_times.size == 0:
         return []
@@ -898,8 +1047,11 @@ def exclude_close_events(
     keep_mask[1:] = gaps >= close_event_threshold
 
     filtered_events = candidate_event_times[keep_mask]
-    return filtered_events if filtered_events.size > 0 else []
-
+    if included_ripple_inds is not None:
+        included_ripple_inds = included_ripple_inds[keep_mask]
+        return filtered_events if filtered_events.size > 0 else [], included_ripple_inds if len(included_ripple_inds) > 0 else []
+    else:
+        return filtered_events if filtered_events.size > 0 else []
 
 def get_multiunit_population_firing_rate(
     multiunit: ArrayLike, sampling_frequency: float, smoothing_sigma: float = 0.015
