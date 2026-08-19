@@ -849,7 +849,7 @@ def normalize_signal_manually(
     if data.ndim == 1:
         if elec_deviations == 0 or np.isnan(elec_deviations):
             return np.zeros_like(data)
-        normalized = (data - elec_baselines) / elec_deviations
+        normalized_data = (data - elec_baselines) / elec_deviations
     else:
         # Handle multi-channel data (n_time, n_channels)
         # Reshape mad for broadcasting

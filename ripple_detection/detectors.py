@@ -5,7 +5,6 @@ from itertools import chain
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
-from tqdm.notebook import tqdm
 
 from ripple_detection.core import (
     exclude_close_events,
@@ -454,9 +453,16 @@ def Shvartsman_ripple_detector(
     candidate_ripple_times, included_ripple_inds = exclude_movement_by_majority(
         candidate_ripple_times, speed, time, speed_threshold=speed_threshold
     )
-    ripple_times, included_ripple_inds = exclude_close_events(
-        candidate_ripple_times, close_ripple_threshold, included_ripple_inds
-    )
+    if included_ripple_inds is not None:
+        ripple_times, included_ripple_inds = exclude_close_events(
+            candidate_ripple_times, close_ripple_threshold, included_ripple_inds
+        )
+    else:
+        # if included_ripple_inds is None, unpack one value only and include all ripple times from exclude_close_events
+        ripple_times = exclude_close_events(
+            candidate_ripple_times, close_ripple_threshold
+        )
+        included_ripple_inds = np.arange(len(ripple_times))
 
     print("finding participating electrode information...")
     # find participant information
@@ -1192,6 +1198,13 @@ def _get_Shvartsman_event_stats(
 
     index = pd.Index(np.arange(len(event_times_arr)) + 1, name="event_number")
 
+    try:
+        speed_at_start = speed_arr[np.isin(time_arr, event_times_arr[:, 0])]
+        speed_at_end = speed_arr[np.isin(time_arr, event_times_arr[:, 1])]
+    except (IndexError, TypeError):
+        speed_at_start = np.full_like(event_times_arr, np.nan)
+        speed_at_end = np.full_like(event_times_arr, np.nan)
+
     mean_zscore = []
     median_zscore = []
     max_zscore = []
@@ -1205,7 +1218,7 @@ def _get_Shvartsman_event_stats(
     area = []
     total_energy = []
 
-    for r, (start_time, end_time) in tqdm(enumerate(event_times_arr)):
+    for r, (start_time, end_time) in enumerate(event_times_arr):
 
         time_mask = np.logical_and(time_arr >= start_time, time_arr <= end_time)
         time_ind = np.where(time_mask)[0]
@@ -1248,6 +1261,8 @@ def _get_Shvartsman_event_stats(
             "min_zscore": min_zscore,
             "area": area,
             "total_energy": total_energy,
+            "speed_at_start": speed_at_start,
+            "speed_at_end": speed_at_end,
             "max_speed": max_speed,
             "min_speed": min_speed,
             "median_speed": median_speed,
