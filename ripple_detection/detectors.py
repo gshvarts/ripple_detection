@@ -435,11 +435,13 @@ def Shvartsman_ripple_detector(
 
     # account for different ways to specify participation threshold (fraction or number of electrodes)
     n_elecs = filtered_lfps.shape[1]
-    if (participation_threshold >= 0) & (participation_threshold <= 1):
-        # calculate number of electrodes threshold
+    if participation_threshold < 0:
+        raise ValueError("participation_threshold must be non-negative.")
+    if participation_threshold <= 1:
+        # interpret as a fraction of channels (1.0 means all channels)
         n_elecs_thresh = n_elecs * participation_threshold
-
-    if participation_threshold > 1:
+    else:
+        # interpret as an absolute number of channels
         n_elecs_thresh = participation_threshold
 
     participation_mask = (
