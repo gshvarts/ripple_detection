@@ -450,8 +450,6 @@ def Shvartsman_ripple_detector(
     )
     candidate_ripple_times = merged_candidates[participation_mask, :2]
 
-    print("excluding movement and close event times...")
-    close_ripple_threshold = 0
     candidate_ripple_times, included_ripple_inds = exclude_movement_by_majority(
         candidate_ripple_times, speed, time, speed_threshold=speed_threshold
     )
