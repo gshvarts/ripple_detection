@@ -980,9 +980,10 @@ def merge_overlapping_ranges_track_participation(
             # otherwise create a new merged interval
             merged.append([start, end, {e_idx}])
 
-    merged = np.asarray(merged)
+    if not merged:
+        return np.empty((0, 3), dtype=object)
 
-    return merged
+    return np.asarray(merged, dtype=object)
 
 def exclude_close_events(
     candidate_event_times: ArrayLike, close_event_threshold: float = 1.0,
