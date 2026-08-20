@@ -306,12 +306,12 @@ def Shvartsman_ripple_detector(
     participation_threshold: float = 2,
 ) -> pd.DataFrame:
     """Detect sharp-wave ripples using per-channel detection, only considering
-    times when the % of participating channels exceeds a set fraction. Acts 
-    as a middle ground between Kay method (consensus method) and Karlsson 
-    method (local ripples) that is less sensitive to random noise 
+    times when the % of participating channels exceeds a set fraction. Acts
+    as a middle ground between Kay method (consensus method) and Karlsson
+    method (local ripples) that is less sensitive to random noise
     fluctuations than the Karlsson method.
 
-    Additionally, allows for manual normalization by passing in specific 
+    Additionally, allows for manual normalization by passing in specific
     inputs for the baselines and deviations for each electrode. For example,
     if you want to normalize across all epochs throughout a day rather than
     within one particular epoch (important for detecting ripples during sleep
@@ -442,9 +442,7 @@ def Shvartsman_ripple_detector(
     ]
 
     # merging overlapping candidate ripple times
-    merged_candidates = merge_overlapping_ranges_track_participation(
-        candidate_ripple_times
-    )
+    merged_candidates = merge_overlapping_ranges_track_participation(candidate_ripple_times)
 
     # account for different ways to specify participation threshold (fraction or number of electrodes)
     n_elecs = filtered_lfps.shape[1]
@@ -458,8 +456,7 @@ def Shvartsman_ripple_detector(
         n_elecs_thresh = participation_threshold
 
     participation_mask = (
-        np.asarray([len(interval[2]) for interval in merged_candidates])
-        >= n_elecs_thresh
+        np.asarray([len(interval[2]) for interval in merged_candidates]) >= n_elecs_thresh
     )
     candidate_ripple_times = merged_candidates[participation_mask, :2]
 
@@ -472,15 +469,11 @@ def Shvartsman_ripple_detector(
         )
     else:
         # if included_ripple_inds is None, unpack one value only and include all ripple times from exclude_close_events
-        ripple_times = exclude_close_events(
-            candidate_ripple_times, close_ripple_threshold
-        )
+        ripple_times = exclude_close_events(candidate_ripple_times, close_ripple_threshold)
         included_ripple_inds = np.arange(len(ripple_times))
 
     # find participant information
-    participants = merged_candidates[
-        participation_mask, 2
-    ]  # filter by participation mask
+    participants = merged_candidates[participation_mask, 2]  # filter by participation mask
     participants = participants[
         included_ripple_inds
     ]  # filter by included ripple inds from other exclusion functions above
@@ -1183,11 +1176,11 @@ def _get_Shvartsman_event_stats(
     n_participants: array_like, shape (n_events,)
         Number of participating channels for each ripple event.
     frac_participants: array_like, shape (n_events,)
-        Fraction of (# of participating channels) / (total channels) per 
+        Fraction of (# of participating channels) / (total channels) per
         each ripple event.
     minimum_duration : float, optional
         Minimum duration for max_thresh calculation. Default is 0.015 (15 ms).
-        
+
     Returns
     -------
     event_stats : pd.DataFrame
@@ -1200,7 +1193,7 @@ def _get_Shvartsman_event_stats(
         - total_energy: Integral of squared z-score
         - speed_at_start, speed_at_end: Speed at event boundaries
         - max_speed, min_speed, median_speed, mean_speed: Speed statistics
-        - participants, n_participants, frac_participants: Information on 
+        - participants, n_participants, frac_participants: Information on
             which channels exhibited a ripple during the detected event
 
     """

@@ -372,12 +372,12 @@ def exclude_movement_by_majority(
     """
     candidate_ripple_times = np.array(candidate_ripple_times)
 
-    speed_df = pd.DataFrame({'speed': speed}, index=time)
+    speed_df = pd.DataFrame({"speed": speed}, index=time)
 
     included_ripple_times = []
     included_ripple_inds = []
     for r, (start_time, end_time) in enumerate(candidate_ripple_times):
-        speed_segment = speed_df.loc[start_time:end_time, 'speed']
+        speed_segment = speed_df.loc[start_time:end_time, "speed"]
         n_below_threshold = np.sum(speed_segment <= speed_threshold)
         n_total = len(speed_segment)
         if n_below_threshold / n_total >= majority_threshold:
@@ -813,6 +813,7 @@ def normalize_signal(
     else:  # method == "median_mad"
         return _normalize_median_mad(data_arr, mask)
 
+
 def normalize_signal_manually(
     data: ArrayLike,
     elec_baselines: ArrayLike,
@@ -820,7 +821,7 @@ def normalize_signal_manually(
 ) -> NDArray:
     """
     Allows normalization based on the baselines and deviations input into this
-    function rather than automatically calculating them based on the passed 
+    function rather than automatically calculating them based on the passed
     in data.
     This is particularly useful for doing ripple detection on sleep sessions
     when you want to use an overall baseline/deviation from the entire recording
@@ -862,6 +863,7 @@ def normalize_signal_manually(
     normalized_data[:, degenerate[0]] = 0.0
 
     return normalized_data
+
 
 def threshold_by_zscore(
     zscored_data: ArrayLike,
@@ -948,6 +950,7 @@ def merge_overlapping_ranges(
             current_stop = max(current_stop, stop)
     yield current_start, current_stop
 
+
 def merge_overlapping_ranges_track_participation(
     candidate_ripple_times: list[tuple[float, float]],
 ):
@@ -1000,8 +1003,10 @@ def merge_overlapping_ranges_track_participation(
 
     return np.asarray(merged, dtype=object)
 
+
 def exclude_close_events(
-    candidate_event_times: ArrayLike, close_event_threshold: float = 1.0,
+    candidate_event_times: ArrayLike,
+    close_event_threshold: float = 1.0,
     included_ripple_inds: list = None,
 ) -> NDArray | list:
     """Remove events that occur too close together in time.
@@ -1070,9 +1075,12 @@ def exclude_close_events(
     filtered_events = candidate_event_times[keep_mask]
     if included_ripple_inds is not None:
         included_ripple_inds = included_ripple_inds[keep_mask]
-        return filtered_events if filtered_events.size > 0 else [], included_ripple_inds if len(included_ripple_inds) > 0 else []
+        return filtered_events if filtered_events.size > 0 else [], (
+            included_ripple_inds if len(included_ripple_inds) > 0 else []
+        )
     else:
         return filtered_events if filtered_events.size > 0 else []
+
 
 def get_multiunit_population_firing_rate(
     multiunit: ArrayLike, sampling_frequency: float, smoothing_sigma: float = 0.015
