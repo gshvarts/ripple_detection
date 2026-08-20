@@ -488,6 +488,7 @@ def Shvartsman_ripple_detector(
         participants,
         n_participants,
         frac_participants,
+        minimum_duration=minimum_duration,
     )
 
     return ripple_data
