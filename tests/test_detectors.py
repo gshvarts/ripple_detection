@@ -17,7 +17,9 @@ from ripple_detection.detectors import (
 
 
 class TestShvartsmanRippleDetector:
-    def test_single_channel_with_ripples(self, time_3s, single_lfp_with_ripples, stationary_speed, sampling_frequency):
+    def test_single_channel_with_ripples(
+        self, time_3s, single_lfp_with_ripples, stationary_speed, sampling_frequency
+    ):
         """Test Shvartsman detector with single LFP channel containing ripples."""
         filtered_lfps = filter_ripple_band(single_lfp_with_ripples)
         ripples = Shvartsman_ripple_detector(
@@ -28,13 +30,21 @@ class TestShvartsmanRippleDetector:
         assert isinstance(ripples, pd.DataFrame)
 
         # Verify empty DataFrame (doesn't exceed 2-channel default participation minimum)
-        assert ripples.empty, "Should not detect any ripples because there's a 2-channel participation minimum default"
+        assert (
+            ripples.empty
+        ), "Should not detect any ripples because there's a 2-channel participation minimum default"
 
-    def test_single_channel_with_ripples_participation_threshold_0(self, time_3s, single_lfp_with_ripples, stationary_speed, sampling_frequency):
+    def test_single_channel_with_ripples_participation_threshold_0(
+        self, time_3s, single_lfp_with_ripples, stationary_speed, sampling_frequency
+    ):
         """Test Shvartsman detector with single LFP channel containing ripples, with participation_threshold=0."""
         filtered_lfps = filter_ripple_band(single_lfp_with_ripples)
         ripples = Shvartsman_ripple_detector(
-            time_3s, filtered_lfps, stationary_speed, sampling_frequency, participation_threshold=0
+            time_3s,
+            filtered_lfps,
+            stationary_speed,
+            sampling_frequency,
+            participation_threshold=0,
         )
 
         # Verify output structure
@@ -99,7 +109,9 @@ class TestShvartsmanRippleDetector:
         assert isinstance(ripples, pd.DataFrame)
 
         # Verify empty DataFrame (doesn't exceed 2-channel default participation minimum)
-        assert ripples.empty, "Should not detect any ripples because they don't co-occur across the two channels"
+        assert (
+            ripples.empty
+        ), "Should not detect any ripples because they don't co-occur across the two channels"
 
     def test_dual_channel_with_cooccur_ripples(
         self, time_3s, dual_lfp_with_cooccur_ripples, stationary_speed, sampling_frequency
@@ -184,7 +196,9 @@ class TestShvartsmanRippleDetector:
         assert isinstance(ripples, pd.DataFrame)
 
         # Verify empty DataFrame (doesn't exceed 2-channel default participation minimum for any single ripple)
-        assert ripples.empty, "Should not detect any ripples because they don't co-occur across the sparse channels"
+        assert (
+            ripples.empty
+        ), "Should not detect any ripples because they don't co-occur across the sparse channels"
 
     def test_multi_channel_sparse_cooccur_ripples(
         self, time_3s, multi_lfp_sparse_cooccur_ripples, stationary_speed, sampling_frequency
@@ -262,7 +276,11 @@ class TestShvartsmanRippleDetector:
         # assert ripples.empty, "Should not detect any events in noise-only signal"
 
     def test_all_movement_events(
-        self, time_3s, dual_lfp_with_cooccur_ripples, speed_with_all_movement, sampling_frequency
+        self,
+        time_3s,
+        dual_lfp_with_cooccur_ripples,
+        speed_with_all_movement,
+        sampling_frequency,
     ):
         """Test that if all events occur during movement, all are excluded and proper format is returned."""
         # Detect with movement after t=1.5s
@@ -280,7 +298,9 @@ class TestShvartsmanRippleDetector:
         assert isinstance(ripples_movement, pd.DataFrame)
 
         # Verify empty DataFrame
-        assert ripples_movement.empty, "Should not detect any ripples because animal is always moving"
+        assert (
+            ripples_movement.empty
+        ), "Should not detect any ripples because animal is always moving"
 
     def test_all_but_one_movement_events(
         self, time_3s, dual_lfp_with_cooccur_ripples, speed_with_movement, sampling_frequency
@@ -301,7 +321,9 @@ class TestShvartsmanRippleDetector:
         assert isinstance(ripples_movement, pd.DataFrame)
 
         # Verify empty DataFrame
-        assert len(ripples_movement) == 1, "Should detect one ripple event that occurs before movement begins"
+        assert (
+            len(ripples_movement) == 1
+        ), "Should detect one ripple event that occurs before movement begins"
 
     def test_speed_threshold(
         self, time_3s, dual_lfp_with_cooccur_ripples, speed_with_movement, sampling_frequency
@@ -337,7 +359,11 @@ class TestShvartsmanRippleDetector:
             ), "Ripples during movement should be excluded"
 
     def test_minimum_duration(
-        self, time_3s, dual_lfp_with_cooccur_short_ripples, stationary_speed, sampling_frequency
+        self,
+        time_3s,
+        dual_lfp_with_cooccur_short_ripples,
+        stationary_speed,
+        sampling_frequency,
     ):
         """Test that very short ripples are not detected."""
         filtered_lfps = filter_ripple_band(dual_lfp_with_cooccur_short_ripples)
@@ -384,7 +410,11 @@ class TestShvartsmanRippleDetector:
         ), "Lower threshold should detect more events"
 
     def test_close_ripple_threshold(
-        self, time_3s, dual_lfp_with_close_cooccur_ripples, stationary_speed, sampling_frequency
+        self,
+        time_3s,
+        dual_lfp_with_close_cooccur_ripples,
+        stationary_speed,
+        sampling_frequency,
     ):
         """Test exclusion of ripples that occur too close together."""
         filtered_lfps = filter_ripple_band(dual_lfp_with_close_cooccur_ripples)
@@ -417,7 +447,11 @@ class TestShvartsmanRippleDetector:
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         try:
             ripples = Shvartsman_ripple_detector(
-                time_3s, filtered_lfps, stationary_speed, sampling_frequency, manual_normalization=True
+                time_3s,
+                filtered_lfps,
+                stationary_speed,
+                sampling_frequency,
+                manual_normalization=True,
             )
             assert False, "Should have raised ValueError"
         except ValueError:
@@ -430,7 +464,13 @@ class TestShvartsmanRippleDetector:
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         try:
             ripples = Shvartsman_ripple_detector(
-                time_3s, filtered_lfps, stationary_speed, sampling_frequency, manual_normalization=True, elec_baselines=np.ones(len(filtered_lfps)), elec_deviations=np.ones(len(filtered_lfps) - 1)
+                time_3s,
+                filtered_lfps,
+                stationary_speed,
+                sampling_frequency,
+                manual_normalization=True,
+                elec_baselines=np.ones(len(filtered_lfps)),
+                elec_deviations=np.ones(len(filtered_lfps) - 1),
             )
             assert False, "Should have raised ValueError"
         except ValueError:
@@ -443,7 +483,13 @@ class TestShvartsmanRippleDetector:
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         try:
             ripples = Shvartsman_ripple_detector(
-                time_3s, filtered_lfps, stationary_speed, sampling_frequency, manual_normalization=True, elec_baselines=np.ones(len(filtered_lfps) - 1), elec_deviations=np.ones(len(filtered_lfps) - 1)
+                time_3s,
+                filtered_lfps,
+                stationary_speed,
+                sampling_frequency,
+                manual_normalization=True,
+                elec_baselines=np.ones(len(filtered_lfps) - 1),
+                elec_deviations=np.ones(len(filtered_lfps) - 1),
             )
             assert False, "Should have raised ValueError"
         except ValueError:

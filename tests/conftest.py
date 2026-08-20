@@ -116,7 +116,6 @@ def dual_lfp_with_close_cooccur_ripples(time_3s):
     return np.column_stack([lfp1, lfp2])
 
 
-
 @pytest.fixture
 def multi_lfp_sparse_ripples(time_3s):
     """Generate many LFP channels with ripples only in first two channels."""
@@ -245,7 +244,7 @@ def speed_with_movement(time_3s):
 @pytest.fixture
 def speed_with_all_movement(time_3s):
     """Generate speed data where animal is always moving."""
-    speed = np.ones_like(time_3s)*5  # Above typical threshold of 4
+    speed = np.ones_like(time_3s) * 5  # Above typical threshold of 4
     return speed
 
 
