@@ -340,12 +340,10 @@ def exclude_movement_by_majority(
 ) -> NDArray | list:
     """Filter out candidate ripples that occur during animal movement.
 
-    Removes events where the animal's speed at either the start or end of the
-    event exceeds the specified threshold.
-
-    Expands on exclude_movement by allowing specification of how much of the
-    event is allowed to include movement rather than just excluding any 
-    events that include any movement.
+    Retains an event only if the animal's speed is at or below `speed_threshold`
+    for at least `majority_threshold` of the samples within the event. This
+    expands on `exclude_movement`, which excludes an event if *any* movement
+    occurs during it.
 
     Parameters
     ----------
@@ -356,21 +354,19 @@ def exclude_movement_by_majority(
     time : array_like, shape (n_time,)
         Time values corresponding to speed measurements.
     speed_threshold : float, optional
-        Maximum speed (in same units as `speed`) for event to be retained.
-        Events with speed < speed_threshold for a majority of the event are included.
-        Default is 4.0 (cm/s).
-    majority_threshold: float, optional
-        Proportion of time within the event that speed must be below threshold
-        to include the event. Default is 0.5 (50% of the event duration).
+        Maximum speed (in same units as `speed`) for a sample to count as
+        immobile. Default is 4.0 (cm/s).
+    majority_threshold : float, optional
+        Fraction of within-event samples that must be at or below
+        `speed_threshold` for the event to be retained. Default is 0.5.
 
     Returns
     -------
-    included_ripple_times : ndarray or list
-        Filtered event times where animal speed is below threshold for a 
-        majority of the event time. Returns ndarray of shape (n_stationary_ripples, 2), 
-        or empty list if no events remain.
-    included_ripple_inds: list
-        Indices of the included ripples from the original candidate list. This is useful
+    included_ripple_times : list
+        Retained event times as a list of ``[start_time, end_time]`` pairs
+        (empty list if no events remain).
+    included_ripple_inds : list
+        Indices of the retained ripples in the original candidate list, useful
         for filtering associated data arrays.
 
     """
@@ -820,8 +816,8 @@ def normalize_signal(
 def normalize_signal_manually(
     data: ArrayLike,
     elec_baselines: ArrayLike,
-    elec_deviations: ArrayLike,        
-):
+    elec_deviations: ArrayLike,
+) -> NDArray:
     """
     Allows normalization based on the baselines and deviations input into this
     function rather than automatically calculating them based on the passed 
@@ -955,10 +951,21 @@ def merge_overlapping_ranges(
 def merge_overlapping_ranges_track_participation(
     candidate_ripple_times: list[tuple[float, float]],
 ):
-    """
-    Merge overlapping and adjacent ranges as in merge_overlapping_ranges
-    but also track which channels (e_idx) contribute to each merged range
-    (ripple event).
+    """Merge overlapping/adjacent per-channel ranges, tracking participation.
+
+    Like `merge_overlapping_ranges`, but also records which channels contribute
+    to each merged interval.
+
+    Parameters
+    ----------
+    candidate_ripple_times : list of length n_channels
+        Per-channel lists of (start_time, end_time) tuples.
+
+    Returns
+    -------
+    merged : ndarray, shape (n_merged, 3), dtype=object
+        Each row is ``[start_time, end_time, participating_channels]``, where
+        ``participating_channels`` is a set of channel indices.
     """
     all_intervals = []
     for e_idx, intervals in enumerate(candidate_ripple_times):
@@ -1022,10 +1029,13 @@ def exclude_close_events(
     -------
     filtered_event_times : ndarray or list
         Filtered event times with shape (n_filtered_events, 2), or empty
-        list if no events remain.
-    included_ripple_inds: list
-        Indices of the included ripples from the original candidate list. This is useful
-        for filtering associated data arrays.
+        list if no events remain. Returned alone when `included_ripple_inds`
+        is None (the default).
+    included_ripple_inds : list
+        Only returned when `included_ripple_inds` was provided: the retained
+        subset of those indices, aligned with `filtered_event_times`. In that
+        case the function returns the tuple
+        ``(filtered_event_times, included_ripple_inds)``.
 
     Notes
     -----

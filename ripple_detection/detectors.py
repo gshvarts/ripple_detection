@@ -354,33 +354,42 @@ def Shvartsman_ripple_detector(
     normalization_method : {'zscore', 'median_mad'}, optional
         Method for normalizing each channel. Default is 'zscore' (mean/std).
         Use 'median_mad' for more robust normalization when data contains outliers.
-        The median/MAD method is more resistant to extreme values.
+        Only used when ``manual_normalization=False``; ignored otherwise.
     normalization_mask : array_like, shape (n_time,), optional
-        Boolean mask to specify which samples to use for computing normalization
-        statistics. For example, use `speed < speed_threshold` to compute
-        statistics only during immobility. Cannot be used with
-        `normalization_time_range`. Default is None (use all data).
+        Boolean mask selecting samples used to compute normalization statistics.
+        For example, use `speed < speed_threshold` to compute statistics only
+        during immobility. Cannot be used with `normalization_time_range`. Only
+        used when ``manual_normalization=False``. Default is None (use all data).
     normalization_time_range : tuple of (float, float), optional
         Time range (start_time, end_time) in seconds for computing normalization
-        statistics. Useful for baseline normalization. Cannot be used with
-        `normalization_mask`. Default is None (use all data).
-    manual_normalization: bool, optional
-        If True, enable manual normalization where elec_baselines and
-        elec_deviations are used rather than automatically computing the 
-        zscore or median_mad.
-    elec_baselines: array_like, shape (n_channels,), optional
-        Specifies the baseline value to use for normalization for each channel.
-    elec_deviations: array_like, shape (n_channels,), optional
-        Specifies the deviation value to use for normalization for each channel.
-    participation_threshold: float, optional
-        Minimum number of channels that must participate in a candidate ripple\
-        event for it classified as a ripple. Default = 2.
+        statistics. Cannot be used with `normalization_mask`. Only used when
+        ``manual_normalization=False``. Default is None (use all data).
+    manual_normalization : bool, optional
+        If True, normalize each channel with the supplied `elec_baselines` and
+        `elec_deviations` instead of computing statistics from the data; the
+        `normalization_*` parameters above are then ignored. Requires both
+        `elec_baselines` and `elec_deviations` (raises ValueError if either is
+        missing). Default is False.
+    elec_baselines : array_like, shape (n_channels,), optional
+        Baseline (center) value per channel. Required when
+        ``manual_normalization=True``.
+    elec_deviations : array_like, shape (n_channels,), optional
+        Deviation (scale) value per channel. Required when
+        ``manual_normalization=True``.
+    participation_threshold : float, optional
+        Participation cutoff for a merged event. If in [0, 1], interpreted as
+        the *fraction* of channels that must participate (note 1.0 means all
+        channels, not one). If > 1, interpreted as an absolute *number* of
+        channels. Default is 2.
 
     Returns
     -------
     ripple_times : pd.DataFrame
         DataFrame with detected ripples and comprehensive statistics (see
-        Kay_ripple_detector for column descriptions).
+        Kay_ripple_detector for the shared columns). This detector additionally
+        returns ``participants`` (set of channel indices active in the event),
+        ``n_participants`` (count), and ``frac_participants`` (count / total
+        channels).
 
         Returns empty DataFrame if no ripples detected. If this occurs, try:
         - Lowering zscore_threshold (e.g., from 3.0 to 2.0)
