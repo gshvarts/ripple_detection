@@ -389,7 +389,6 @@ def Shvartsman_ripple_detector(
         - Verifying your data contains ripple oscillations (150-250 Hz)
 
     """
-    print("preprocessing detector inputs...")
     time, filtered_lfps, speed = _preprocess_detector_inputs(
         time, filtered_lfps, speed, sampling_frequency, speed_threshold
     )
@@ -405,9 +404,6 @@ def Shvartsman_ripple_detector(
             raise ValueError(
                 "Must provide elec_baselines and elec_deviations for manual normalization."
             )
-        print(
-            "manually normalizing the signal based on input baselines and deviations..."
-        )
         filtered_lfps = normalize_signal_manually(
             filtered_lfps,
             elec_baselines,
@@ -422,13 +418,13 @@ def Shvartsman_ripple_detector(
             normalization_time_range=normalization_time_range,
         )
 
-    print("thresholding the normalized ripple times...")
+    # thresholding the normalized ripple times
     candidate_ripple_times = [
         threshold_by_zscore(filtered_lfp, time, minimum_duration, zscore_threshold)
         for filtered_lfp in filtered_lfps.T
     ]
 
-    print("merging overlapping candidate ripple times...")
+    # merging overlapping candidate ripple times
     merged_candidates = merge_overlapping_ranges_track_participation(
         candidate_ripple_times
     )
@@ -464,7 +460,6 @@ def Shvartsman_ripple_detector(
         )
         included_ripple_inds = np.arange(len(ripple_times))
 
-    print("finding participating electrode information...")
     # find participant information
     participants = merged_candidates[
         participation_mask, 2
@@ -475,7 +470,7 @@ def Shvartsman_ripple_detector(
     n_participants = np.array([len(p) for p in participants])
     frac_participants = n_participants / n_elecs
 
-    print("getting event stats...")
+    # get final event stats
     ripple_data = _get_Shvartsman_event_stats(
         ripple_times,
         time,
