@@ -300,9 +300,9 @@ def Shvartsman_ripple_detector(
     normalization_method: str = "zscore",
     normalization_mask: ArrayLike | None = None,
     normalization_time_range: tuple[float, float] | None = None,
-    manual_normalization: bool = True,
-    elec_baselines: ArrayLike = None,
-    elec_deviations: ArrayLike = None,
+    manual_normalization: bool = False,
+    elec_baselines: ArrayLike | None = None,
+    elec_deviations: ArrayLike | None = None,
     participation_threshold: float = 2,
 ) -> pd.DataFrame:
     """Detect sharp-wave ripples using per-channel detection, only considering
