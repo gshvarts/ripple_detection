@@ -846,17 +846,25 @@ def normalize_signal_manually(
     normalized_data : ndarray, shape matches input
         Normalized signal with the same shape as input.
     """
+    data = np.asarray(data)
+    elec_baselines = np.asarray(elec_baselines)
+    elec_deviations = np.asarray(elec_deviations, dtype=float)
+
     if data.ndim == 1:
         if elec_deviations == 0 or np.isnan(elec_deviations):
             return np.zeros_like(data)
-        normalized_data = (data - elec_baselines) / elec_deviations
-    else:
-        # Handle multi-channel data (n_time, n_channels)
-        # Reshape mad for broadcasting
-        elec_deviations = elec_deviations.copy().reshape(1, -1)
-        elec_deviations[elec_deviations == 0] = 1.0  # Avoid division by zero
-        normalized_data = (data - elec_baselines) / elec_deviations
-    
+        return (data - elec_baselines) / elec_deviations
+
+    # Multi-channel data (n_time, n_channels): zero/NaN-deviation channels are
+    # degenerate, so zero them out (matching the 1-D branch) rather than dividing
+    # by a placeholder 1.0, which would let a dead channel cross threshold and
+    # inflate participation counts.
+    elec_deviations = elec_deviations.reshape(1, -1)
+    degenerate = (elec_deviations == 0) | np.isnan(elec_deviations)
+    safe_deviations = np.where(degenerate, 1.0, elec_deviations)
+    normalized_data = (data - elec_baselines) / safe_deviations
+    normalized_data[:, degenerate[0]] = 0.0
+
     return normalized_data
 
 def threshold_by_zscore(
