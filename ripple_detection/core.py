@@ -1030,10 +1030,12 @@ def exclude_close_events(
         included_ripple_inds = np.array(included_ripple_inds)
 
     if candidate_event_times.size == 0:
-        return []
+        return ([], []) if included_ripple_inds is not None else []
 
     # For single event, no filtering needed
     if candidate_event_times.shape[0] == 1:
+        if included_ripple_inds is not None:
+            return candidate_event_times, included_ripple_inds
         return candidate_event_times
 
     # Extract start and end times
