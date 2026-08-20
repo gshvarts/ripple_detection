@@ -413,6 +413,14 @@ def Shvartsman_ripple_detector(
             raise ValueError(
                 "Must provide elec_baselines and elec_deviations for manual normalization."
             )
+        if len(elec_baselines) != len(elec_deviations):
+            raise ValueError(
+                "Provided elec_baselines and elec_deviations must be the same length."
+            )
+        if len(elec_baselines) != len(filtered_lfps):
+            raise ValueError(
+                "Provided elec_baselines should match the length of filtered_lfps."
+            )
         filtered_lfps = normalize_signal_manually(
             filtered_lfps,
             elec_baselines,
