@@ -477,15 +477,15 @@ def Shvartsman_ripple_detector(
     frac_participants = n_participants / n_elecs
 
     # get final event stats
-    ripple_data = _get_Shvartsman_event_stats(
+    ripple_data = _get_event_stats(
         ripple_times,
         time,
         filtered_lfps,
         speed,
+        minimum_duration,
         participants,
         n_participants,
         frac_participants,
-        minimum_duration=minimum_duration,
     )
 
     return ripple_data
@@ -1037,6 +1037,9 @@ def _get_event_stats(
     zscore_metric: ArrayLike,
     speed: ArrayLike,
     minimum_duration: float = 0.015,
+    participants: ArrayLike | None = None,
+    n_participants: ArrayLike | None = None,
+    frac_participants: ArrayLike | None = None
 ) -> pd.DataFrame:
     """Compute comprehensive statistics for detected events.
 
@@ -1048,12 +1051,19 @@ def _get_event_stats(
         Array of [start_time, end_time] for each event.
     time : array_like, shape (n_time,)
         Time values for each sample.
-    zscore_metric : array_like, shape (n_time,)
-        Z-scored signal used for detection.
+    zscore_metric : array_like, if participants is None: shape (n_time,); else shape (n_time, n_channels)
+        Z-scored signal used for detection. If participants is None, this should include the z-scored signal for all channels so metrics can be calculated based only on data from participants.
     speed : array_like, shape (n_time,)
         Animal's speed at each time point.
     minimum_duration : float, optional
         Minimum duration for max_thresh calculation. Default is 0.015 (15 ms).
+    participants: array_like, shape (n_events,)
+        Which channels participate in each ripple event. Used by Shvartsman_ripple_detector. Optional, default is None.
+    n_participants: array_like, shape (n_events,)
+        Number of participating channels for each ripple event. Used by Shvartsman_ripple_detector. Optional, default is None.
+    frac_participants: array_like, shape (n_events,)
+        Fraction of (# of participating channels) / (total channels) per
+        each ripple event. Used by Shvartsman_ripple_detector. Optional, default is None.
 
     Returns
     -------
@@ -1067,6 +1077,9 @@ def _get_event_stats(
         - total_energy: Integral of squared z-score
         - speed_at_start, speed_at_end: Speed at event boundaries
         - max_speed, min_speed, median_speed, mean_speed: Speed statistics
+        - participants, n_participants, frac_participants: Information on
+            which channels exhibited a ripple during the detected event
+            (returned if 'participants' input is not None)
 
     """
     event_times_arr = np.asarray(event_times)
@@ -1095,139 +1108,26 @@ def _get_event_stats(
     area = []
     total_energy = []
 
-    for start_time, end_time in event_times_arr:
-        ind = np.logical_and(time_arr >= start_time, time_arr <= end_time)
-        event_zscore = zscore_metric_arr[ind]
-        max_thresh.append(
-            _find_max_thresh(time_arr[ind], zscore_metric_arr[ind], minimum_duration)
-        )
-        mean_zscore.append(np.mean(event_zscore))
-        median_zscore.append(np.median(event_zscore))
-        max_zscore.append(np.max(event_zscore))
-        min_zscore.append(np.min(event_zscore))
-        area.append(trapezoid(event_zscore, time_arr[ind]))
-        total_energy.append(trapezoid(event_zscore**2, time_arr[ind]))
-        duration.append(end_time - start_time)
-        max_speed.append(np.max(speed_arr[ind]))
-        min_speed.append(np.min(speed_arr[ind]))
-        median_speed.append(np.median(speed_arr[ind]))
-        mean_speed.append(np.mean(speed_arr[ind]))
-
-    try:
-        event_start_times = event_times_arr[:, 0]
-        event_end_times = event_times_arr[:, 1]
-    except (IndexError, TypeError):
-        event_start_times = []
-        event_end_times = []
-
-    return pd.DataFrame(
-        {
-            "start_time": event_start_times,
-            "end_time": event_end_times,
-            "duration": duration,
-            "max_thresh": max_thresh,
-            "mean_zscore": mean_zscore,
-            "median_zscore": median_zscore,
-            "max_zscore": max_zscore,
-            "min_zscore": min_zscore,
-            "area": area,
-            "total_energy": total_energy,
-            "speed_at_start": speed_at_start,
-            "speed_at_end": speed_at_end,
-            "max_speed": max_speed,
-            "min_speed": min_speed,
-            "median_speed": median_speed,
-            "mean_speed": mean_speed,
-        },
-        index=index,
-    )
-
-
-def _get_Shvartsman_event_stats(
-    event_times: ArrayLike,
-    time: ArrayLike,
-    norm_ripple_bands: ArrayLike,
-    speed: ArrayLike,
-    participants: ArrayLike,
-    n_participants: ArrayLike,
-    frac_participants: ArrayLike,
-    minimum_duration: float = 0.015,
-) -> pd.DataFrame:
-    """Compute comprehensive statistics for detected events.
-
-    Calculates temporal, z-score, signal, and speed metrics for each event.
-
-    Parameters
-    ----------
-    event_times : array_like, shape (n_events, 2)
-        Array of [start_time, end_time] for each event.
-    time : array_like, shape (n_time,)
-        Time values for each sample.
-    norm_ripple_bands: array_like, shape (n_time, n_channels)
-        Normalized ripple-filtered LFP.
-    speed : array_like, shape (n_time,)
-        Animal's speed at each time point.
-    participants: array_like, shape (n_events,)
-        Which channels participate in each ripple event.
-    n_participants: array_like, shape (n_events,)
-        Number of participating channels for each ripple event.
-    frac_participants: array_like, shape (n_events,)
-        Fraction of (# of participating channels) / (total channels) per
-        each ripple event.
-    minimum_duration : float, optional
-        Minimum duration for max_thresh calculation. Default is 0.015 (15 ms).
-
-    Returns
-    -------
-    event_stats : pd.DataFrame
-        DataFrame with one row per event and columns:
-        - start_time, end_time: Event boundaries
-        - duration: Event duration (end - start)
-        - max_thresh: Maximum z-score sustained for minimum_duration
-        - mean_zscore, median_zscore, max_zscore, min_zscore: Z-score statistics
-        - area: Integral of z-score over event duration
-        - total_energy: Integral of squared z-score
-        - speed_at_start, speed_at_end: Speed at event boundaries
-        - max_speed, min_speed, median_speed, mean_speed: Speed statistics
-        - participants, n_participants, frac_participants: Information on
-            which channels exhibited a ripple during the detected event
-
-    """
-    event_times_arr = np.asarray(event_times)
-    time_arr = np.asarray(time)
-    norm_ripple_bands_arr = np.asarray(norm_ripple_bands)
-    speed_arr = np.asarray(speed)
-
-    index = pd.Index(np.arange(len(event_times_arr)) + 1, name="event_number")
-
-    try:
-        speed_at_start = speed_arr[np.isin(time_arr, event_times_arr[:, 0])]
-        speed_at_end = speed_arr[np.isin(time_arr, event_times_arr[:, 1])]
-    except (IndexError, TypeError):
-        speed_at_start = np.full_like(event_times_arr, np.nan)
-        speed_at_end = np.full_like(event_times_arr, np.nan)
-
-    mean_zscore = []
-    median_zscore = []
-    max_zscore = []
-    min_zscore = []
-    duration = []
-    max_speed = []
-    min_speed = []
-    median_speed = []
-    mean_speed = []
-    max_thresh = []
-    area = []
-    total_energy = []
-
     for r, (start_time, end_time) in enumerate(event_times_arr):
-
         time_mask = np.logical_and(time_arr >= start_time, time_arr <= end_time)
-        time_ind = np.where(time_mask)[0]
-        elec_ind = np.asarray(list(participants[r]))
-        event_zscore = norm_ripple_bands_arr[np.ix_(time_ind, elec_ind)].mean(
-            axis=1
-        )  # only include the participating electrodes for all of these metrics
+
+        if participants is None:
+            if len(zscore_metric.shape) != 1:
+                raise ValueError(f"If no participants are listed, the shape of zscore_metric should be (n_time,). Current shape of zscore_metric is {zscore_metric.shape}.")
+
+            event_zscore = zscore_metric_arr[time_mask]
+
+        else:
+            time_ind = np.where(time_mask)[0]
+            elec_ind = np.asarray(list(participants[r]))
+
+            # check that zscore_metric is 2-D
+            if len(zscore_metric.shape) != 2:
+                raise ValueError(f"If participants are listed, the shape of zscore_metric should be (n_time, n_channels) so that relevant metrics can be properly calculated. Current shape of zscore_metric is {zscore_metric.shape}.")
+
+            event_zscore = zscore_metric[np.ix_(time_ind, elec_ind)].mean(
+                axis=1
+            )  # only include the participating electrodes for all of these metrics
 
         max_thresh.append(
             _find_max_thresh(time_arr[time_mask], event_zscore, minimum_duration)
@@ -1251,27 +1151,50 @@ def _get_Shvartsman_event_stats(
         event_start_times = []
         event_end_times = []
 
-    return pd.DataFrame(
-        {
-            "start_time": event_start_times,
-            "end_time": event_end_times,
-            "duration": duration,
-            "max_thresh": max_thresh,
-            "mean_zscore": mean_zscore,
-            "median_zscore": median_zscore,
-            "max_zscore": max_zscore,
-            "min_zscore": min_zscore,
-            "area": area,
-            "total_energy": total_energy,
-            "speed_at_start": speed_at_start,
-            "speed_at_end": speed_at_end,
-            "max_speed": max_speed,
-            "min_speed": min_speed,
-            "median_speed": median_speed,
-            "mean_speed": mean_speed,
-            "participants": participants,
-            "n_participants": n_participants,
-            "frac_participants": frac_participants,
-        },
-        index=index,
-    )
+    if participants is None:
+        return pd.DataFrame(
+            {
+                "start_time": event_start_times,
+                "end_time": event_end_times,
+                "duration": duration,
+                "max_thresh": max_thresh,
+                "mean_zscore": mean_zscore,
+                "median_zscore": median_zscore,
+                "max_zscore": max_zscore,
+                "min_zscore": min_zscore,
+                "area": area,
+                "total_energy": total_energy,
+                "speed_at_start": speed_at_start,
+                "speed_at_end": speed_at_end,
+                "max_speed": max_speed,
+                "min_speed": min_speed,
+                "median_speed": median_speed,
+                "mean_speed": mean_speed,
+            },
+            index=index,
+        )
+    else:
+        return pd.DataFrame(
+            {
+                "start_time": event_start_times,
+                "end_time": event_end_times,
+                "duration": duration,
+                "max_thresh": max_thresh,
+                "mean_zscore": mean_zscore,
+                "median_zscore": median_zscore,
+                "max_zscore": max_zscore,
+                "min_zscore": min_zscore,
+                "area": area,
+                "total_energy": total_energy,
+                "speed_at_start": speed_at_start,
+                "speed_at_end": speed_at_end,
+                "max_speed": max_speed,
+                "min_speed": min_speed,
+                "median_speed": median_speed,
+                "mean_speed": mean_speed,
+                "participants": participants,
+                "n_participants": n_participants,
+                "frac_participants": frac_participants,
+            },
+            index=index,
+        )
