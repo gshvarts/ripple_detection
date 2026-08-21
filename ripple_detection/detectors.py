@@ -1052,7 +1052,8 @@ def _get_event_stats(
     time : array_like, shape (n_time,)
         Time values for each sample.
     zscore_metric : array_like, if participants is None: shape (n_time,); else shape (n_time, n_channels)
-        Z-scored signal used for detection. If participants is None, this should include the z-scored signal for all channels so metrics can be calculated based only on data from participants.
+        Z-scored signal used for detection. If participants is None, this should include the z-scored signal for all channels
+        so metrics can be calculated based only on data from participants.
     speed : array_like, shape (n_time,)
         Animal's speed at each time point.
     minimum_duration : float, optional
@@ -1114,7 +1115,8 @@ def _get_event_stats(
         if participants is None:
             if len(zscore_metric.shape) != 1:
                 raise ValueError(
-                    f"If no participants are listed, the shape of zscore_metric should be (n_time,). Current shape of zscore_metric is {zscore_metric.shape}."
+                    "If no participants are listed, the shape of zscore_metric should be (n_time,). "
+                    f"Current shape of zscore_metric is {zscore_metric.shape}."
                 )
 
             event_zscore = zscore_metric_arr[time_mask]
@@ -1126,7 +1128,8 @@ def _get_event_stats(
             # check that zscore_metric is 2-D
             if len(zscore_metric.shape) != 2:
                 raise ValueError(
-                    f"If participants are listed, the shape of zscore_metric should be (n_time, n_channels) so that relevant metrics can be properly calculated. Current shape of zscore_metric is {zscore_metric.shape}."
+                    "If participants are listed, the shape of zscore_metric should be (n_time, n_channels) "
+                    f"so that relevant metrics can be properly calculated. Current shape of zscore_metric is {zscore_metric.shape}."
                 )
 
             event_zscore = zscore_metric[np.ix_(time_ind, elec_ind)].mean(
