@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from ripple_detection import (
     Karlsson_ripple_detector,
@@ -13,6 +14,10 @@ from ripple_detection.detectors import (
     Roumis_ripple_detector,
     get_Kay_ripple_consensus_trace,
     multiunit_HSE_detector,
+)
+from ripple_detection.core import (
+    get_envelope,
+    gaussian_smooth,
 )
 
 
@@ -272,8 +277,7 @@ class TestShvartsmanRippleDetector:
         assert isinstance(ripples, pd.DataFrame)
         # With proper thresholding, should detect very few events in random noise
         # Allow up to 5 false positives due to stochastic nature of noise
-        assert len(ripples) <= 5, "Should not detect many events in noise-only signal"
-        # assert ripples.empty, "Should not detect any events in noise-only signal"
+        assert ripples.empty, "Should not detect any events in noise-only signal"
 
     def test_all_movement_events(
         self,
@@ -440,12 +444,30 @@ class TestShvartsmanRippleDetector:
         # Should have fewer or equal ripples with exclusion
         assert len(ripples_with_exclusion) <= len(ripples_no_exclusion)
 
+    def test_manual_norm_success(
+        self, time_3s, multi_lfp_sparse_cooccur_ripples, stationary_speed, sampling_frequency
+    ):
+        """Manual normalization with valid per-channel baselines/deviations detects ripples."""
+        filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
+        # precompute per-channel baseline/deviation of the smoothed envelope
+        # (mirrors supplying day-level stats)
+        env = gaussian_smooth(get_envelope(filtered_lfps), sigma=0.004,
+                            sampling_frequency=sampling_frequency)
+        ripples = Shvartsman_ripple_detector(
+            time_3s, filtered_lfps, stationary_speed, sampling_frequency,
+            manual_normalization=True,
+            elec_baselines=env.mean(axis=0), elec_deviations=env.std(axis=0),
+        )
+        assert isinstance(ripples, pd.DataFrame)
+        assert len(ripples) == 2
+        assert all(ripples["n_participants"] == 2)
+
     def test_manual_norm_no_baseline_inputs(
         self, time_3s, multi_lfp_sparse_cooccur_ripples, stationary_speed, sampling_frequency
     ):
         """Test Shvartsman detector with manual normalization indicated but no baseline values passed in."""
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
-        try:
+        with pytest.raises(ValueError):
             ripples = Shvartsman_ripple_detector(
                 time_3s,
                 filtered_lfps,
@@ -453,47 +475,38 @@ class TestShvartsmanRippleDetector:
                 sampling_frequency,
                 manual_normalization=True,
             )
-            assert False, "Should have raised ValueError"
-        except ValueError:
-            pass  # expected
 
     def test_manual_norm_baseline_deviation_mismatch(
         self, time_3s, multi_lfp_sparse_cooccur_ripples, stationary_speed, sampling_frequency
     ):
         """Test Shvartsman detector with manual normalization indicated but mismatched elec_baselines and elec_deviations lengths."""
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
-        try:
+        with pytest.raises(ValueError):
             ripples = Shvartsman_ripple_detector(
                 time_3s,
                 filtered_lfps,
                 stationary_speed,
                 sampling_frequency,
                 manual_normalization=True,
-                elec_baselines=np.ones(len(filtered_lfps)),
-                elec_deviations=np.ones(len(filtered_lfps) - 1),
+                elec_baselines=np.ones(filtered_lfps.shape[1]),
+                elec_deviations=np.ones(filtered_lfps.shape[1] - 1),
             )
-            assert False, "Should have raised ValueError"
-        except ValueError:
-            pass  # expected
 
     def test_manual_norm_lfp_baseline_mismatch(
         self, time_3s, multi_lfp_sparse_cooccur_ripples, stationary_speed, sampling_frequency
     ):
         """Test Shvartsman detector with manual normalization indicated but mismatched elec_baselines and filtered_lfp lengths."""
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
-        try:
+        with pytest.raises(ValueError):
             ripples = Shvartsman_ripple_detector(
                 time_3s,
                 filtered_lfps,
                 stationary_speed,
                 sampling_frequency,
                 manual_normalization=True,
-                elec_baselines=np.ones(len(filtered_lfps) - 1),
-                elec_deviations=np.ones(len(filtered_lfps) - 1),
+                elec_baselines=np.ones(filtered_lfps.shape[1] - 1),
+                elec_deviations=np.ones(filtered_lfps.shape[1] - 1),
             )
-            assert False, "Should have raised ValueError"
-        except ValueError:
-            pass  # expected
 
 
 class TestKayRippleDetector:
