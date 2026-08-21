@@ -103,13 +103,13 @@ def dual_lfp_with_close_cooccur_ripples(time_3s):
     """Generate two LFP channels with ripples at the same times."""
     lfp1 = simulate_LFP(
         time_3s,
-        ripple_times=[1.1, 2.1],
+        ripple_times=[1.1, 1.3],
         noise_amplitude=1.2,
         ripple_amplitude=1.5,
     )
     lfp2 = simulate_LFP(
         time_3s,
-        ripple_times=[1.150, 2.1],
+        ripple_times=[1.1, 1.3],
         noise_amplitude=1.2,
         ripple_amplitude=1.5,
     )

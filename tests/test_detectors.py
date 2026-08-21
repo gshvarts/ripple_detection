@@ -432,17 +432,18 @@ class TestShvartsmanRippleDetector:
             close_ripple_threshold=0.0,
         )
 
-        # Exclude ripples within 0.1s
+        # Exclude ripples within 0.25s
         ripples_with_exclusion = Shvartsman_ripple_detector(
             time_3s,
             filtered_lfps,
             stationary_speed,
             sampling_frequency,
-            close_ripple_threshold=0.1,
+            close_ripple_threshold=0.25,
         )
 
         # Should have fewer or equal ripples with exclusion
-        assert len(ripples_with_exclusion) <= len(ripples_no_exclusion)
+        assert len(ripples_no_exclusion) == 2
+        assert len(ripples_with_exclusion) == 1
 
     def test_manual_norm_success(
         self, time_3s, multi_lfp_sparse_cooccur_ripples, stationary_speed, sampling_frequency
