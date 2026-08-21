@@ -380,6 +380,11 @@ def exclude_movement_by_majority(
         speed_segment = speed_df.loc[start_time:end_time, "speed"]
         n_below_threshold = np.sum(speed_segment <= speed_threshold)
         n_total = len(speed_segment)
+        if n_total == 0:
+            raise ValueError(
+                f"No speed samples fall within event [{start_time}, {end_time}]; "
+                "speed and time do not cover the candidate event."
+            )
         if n_below_threshold / n_total >= majority_threshold:
             included_ripple_times.append([start_time, end_time])  # keep this ripple
             included_ripple_inds.append(r)
