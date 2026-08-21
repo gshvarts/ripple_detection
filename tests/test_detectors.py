@@ -99,7 +99,7 @@ class TestShvartsmanRippleDetector:
         assert all(ripples["mean_zscore"] >= 0), "Mean z-score should be non-negative"
 
         # Verify number of participants
-        assert all(ripples["n_participants"] == 1), "Each ripple should have two participants"
+        assert all(ripples["n_participants"] == 1), "Single-channel ripples should have one participant"
 
     def test_dual_channel_with_ripples(
         self, time_3s, dual_lfp_with_ripples, stationary_speed, sampling_frequency
@@ -216,9 +216,6 @@ class TestShvartsmanRippleDetector:
 
         # Verify output structure
         assert isinstance(ripples, pd.DataFrame)
-
-        # Verify output structure
-        assert isinstance(ripples, pd.DataFrame)
         assert len(ripples) >= 2, "Should detect at least two ripples"
 
         # Check required columns
@@ -265,6 +262,9 @@ class TestShvartsmanRippleDetector:
 
         # Verify number of participants
         assert all(ripples["n_participants"] == 2), "Each ripple should have two participants"
+        # ripple channels are indices 0 and 1; the 11 noise channels never participate
+        assert all(p == {0, 1} for p in ripples["participants"]), "Participants should be channels 0 and 1"
+        assert np.allclose(ripples["frac_participants"], 2 / 13), "frac_participants should be 2/13"
 
     def test_no_ripples(self, time_3s, lfp_no_ripples, stationary_speed, sampling_frequency):
         """Test with noise-only signal (no ripples)."""
