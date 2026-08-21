@@ -337,7 +337,7 @@ def exclude_movement_by_majority(
     time: ArrayLike,
     speed_threshold: float = 4.0,
     majority_threshold: float = 0.5,
-) -> NDArray | list:
+) -> tuple[list, list]:
     """Filter out candidate ripples that occur during animal movement.
 
     Retains an event only if the animal's speed is at or below `speed_threshold`
@@ -1012,7 +1012,7 @@ def merge_overlapping_ranges_track_participation(
 def exclude_close_events(
     candidate_event_times: ArrayLike,
     close_event_threshold: float = 1.0,
-    included_ripple_inds: list = None,
+    included_ripple_inds: list | None = None,
 ) -> NDArray | list:
     """Remove events that occur too close together in time.
 
