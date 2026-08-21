@@ -419,7 +419,7 @@ def Shvartsman_ripple_detector(
             )
         if len(elec_baselines) != filtered_lfps.shape[1]:
             raise ValueError(
-                "Provided elec_baselines/elec_deviations must have one entry per" \
+                "Provided elec_baselines/elec_deviations must have one entry per"
                 f"channel (n_channels={filtered_lfps.shape[1]}), got {len(elec_baselines)}."
             )
         filtered_lfps = normalize_signal_manually(
@@ -1039,7 +1039,7 @@ def _get_event_stats(
     minimum_duration: float = 0.015,
     participants: ArrayLike | None = None,
     n_participants: ArrayLike | None = None,
-    frac_participants: ArrayLike | None = None
+    frac_participants: ArrayLike | None = None,
 ) -> pd.DataFrame:
     """Compute comprehensive statistics for detected events.
 
@@ -1113,7 +1113,9 @@ def _get_event_stats(
 
         if participants is None:
             if len(zscore_metric.shape) != 1:
-                raise ValueError(f"If no participants are listed, the shape of zscore_metric should be (n_time,). Current shape of zscore_metric is {zscore_metric.shape}.")
+                raise ValueError(
+                    f"If no participants are listed, the shape of zscore_metric should be (n_time,). Current shape of zscore_metric is {zscore_metric.shape}."
+                )
 
             event_zscore = zscore_metric_arr[time_mask]
 
@@ -1123,7 +1125,9 @@ def _get_event_stats(
 
             # check that zscore_metric is 2-D
             if len(zscore_metric.shape) != 2:
-                raise ValueError(f"If participants are listed, the shape of zscore_metric should be (n_time, n_channels) so that relevant metrics can be properly calculated. Current shape of zscore_metric is {zscore_metric.shape}.")
+                raise ValueError(
+                    f"If participants are listed, the shape of zscore_metric should be (n_time, n_channels) so that relevant metrics can be properly calculated. Current shape of zscore_metric is {zscore_metric.shape}."
+                )
 
             event_zscore = zscore_metric[np.ix_(time_ind, elec_ind)].mean(
                 axis=1

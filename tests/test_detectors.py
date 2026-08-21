@@ -99,7 +99,9 @@ class TestShvartsmanRippleDetector:
         assert all(ripples["mean_zscore"] >= 0), "Mean z-score should be non-negative"
 
         # Verify number of participants
-        assert all(ripples["n_participants"] == 1), "Single-channel ripples should have one participant"
+        assert all(
+            ripples["n_participants"] == 1
+        ), "Single-channel ripples should have one participant"
 
     def test_dual_channel_with_ripples(
         self, time_3s, dual_lfp_with_ripples, stationary_speed, sampling_frequency
@@ -263,8 +265,12 @@ class TestShvartsmanRippleDetector:
         # Verify number of participants
         assert all(ripples["n_participants"] == 2), "Each ripple should have two participants"
         # ripple channels are indices 0 and 1; the 11 noise channels never participate
-        assert all(p == {0, 1} for p in ripples["participants"]), "Participants should be channels 0 and 1"
-        assert np.allclose(ripples["frac_participants"], 2 / 13), "frac_participants should be 2/13"
+        assert all(
+            p == {0, 1} for p in ripples["participants"]
+        ), "Participants should be channels 0 and 1"
+        assert np.allclose(
+            ripples["frac_participants"], 2 / 13
+        ), "frac_participants should be 2/13"
 
     def test_no_ripples(self, time_3s, lfp_no_ripples, stationary_speed, sampling_frequency):
         """Test with noise-only signal (no ripples)."""
@@ -452,12 +458,17 @@ class TestShvartsmanRippleDetector:
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         # precompute per-channel baseline/deviation of the smoothed envelope
         # (mirrors supplying day-level stats)
-        env = gaussian_smooth(get_envelope(filtered_lfps), sigma=0.004,
-                            sampling_frequency=sampling_frequency)
+        env = gaussian_smooth(
+            get_envelope(filtered_lfps), sigma=0.004, sampling_frequency=sampling_frequency
+        )
         ripples = Shvartsman_ripple_detector(
-            time_3s, filtered_lfps, stationary_speed, sampling_frequency,
+            time_3s,
+            filtered_lfps,
+            stationary_speed,
+            sampling_frequency,
             manual_normalization=True,
-            elec_baselines=env.mean(axis=0), elec_deviations=env.std(axis=0),
+            elec_baselines=env.mean(axis=0),
+            elec_deviations=env.std(axis=0),
         )
         assert isinstance(ripples, pd.DataFrame)
         assert len(ripples) == 2
