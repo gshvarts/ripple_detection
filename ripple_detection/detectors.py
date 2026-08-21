@@ -464,14 +464,9 @@ def Shvartsman_ripple_detector(
     candidate_ripple_times, included_ripple_inds = exclude_movement_by_majority(
         candidate_ripple_times, speed, time, speed_threshold=speed_threshold
     )
-    if included_ripple_inds is not None:
-        ripple_times, included_ripple_inds = exclude_close_events(
-            candidate_ripple_times, close_ripple_threshold, included_ripple_inds
-        )
-    else:
-        # if included_ripple_inds is None, unpack one value only and include all ripple times from exclude_close_events
-        ripple_times = exclude_close_events(candidate_ripple_times, close_ripple_threshold)
-        included_ripple_inds = np.arange(len(ripple_times))
+    ripple_times, included_ripple_inds = exclude_close_events(
+        candidate_ripple_times, close_ripple_threshold, included_ripple_inds
+    )
 
     # find participant information
     participants = merged_candidates[participation_mask, 2]  # filter by participation mask
