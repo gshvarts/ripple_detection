@@ -991,7 +991,7 @@ def merge_overlapping_ranges_track_participation(
             continue
 
         # fetch the lastmost interval in merged
-        last_start, last_end, last_elecs = merged[-1]
+        last_end = merged[-1][1]
 
         # if the new interval overlaps with the most recent merged interval:
         if start <= last_end:

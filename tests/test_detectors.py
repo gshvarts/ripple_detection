@@ -480,7 +480,7 @@ class TestShvartsmanRippleDetector:
         """Test Shvartsman detector with manual normalization indicated but no baseline values passed in."""
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         with pytest.raises(ValueError):
-            ripples = Shvartsman_ripple_detector(
+            Shvartsman_ripple_detector(
                 time_3s,
                 filtered_lfps,
                 stationary_speed,
@@ -494,7 +494,7 @@ class TestShvartsmanRippleDetector:
         """Test Shvartsman detector with manual normalization indicated but mismatched elec_baselines and elec_deviations lengths."""
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         with pytest.raises(ValueError):
-            ripples = Shvartsman_ripple_detector(
+            Shvartsman_ripple_detector(
                 time_3s,
                 filtered_lfps,
                 stationary_speed,
@@ -510,7 +510,7 @@ class TestShvartsmanRippleDetector:
         """Test Shvartsman detector with manual normalization indicated but mismatched elec_baselines and filtered_lfp lengths."""
         filtered_lfps = filter_ripple_band(multi_lfp_sparse_cooccur_ripples)
         with pytest.raises(ValueError):
-            ripples = Shvartsman_ripple_detector(
+            Shvartsman_ripple_detector(
                 time_3s,
                 filtered_lfps,
                 stationary_speed,
